@@ -27,16 +27,16 @@ type Conf struct {
 }
 
 type Result struct {
-	Responses         uint
-	OkCount           uint
-	RedirectCount     uint
-	ClientErrCount    uint
-	ServerErrorCount  uint
-	Min               uint
-	Max               uint
-	Average           uint
-	TotalSyncElapsed  uint // needed for average value calculation
-	TotalAsyncElapsed uint // total time elapsed to send and handle requests through all iterations
+	Responses         int
+	OkCount           int
+	RedirectCount     int
+	ClientErrCount    int
+	ServerErrorCount  int
+	Min               int
+	Max               int
+	Average           int
+	TotalSyncElapsed  int // needed for average value calculation
+	TotalAsyncElapsed int // total time elapsed to send and handle requests through all iterations
 }
 
 type TimeStatisticOwner interface {
@@ -46,7 +46,7 @@ type TimeStatisticOwner interface {
 func (r *Result) HandleAnswerDuration(d time.Duration) {
 	r.Responses++
 	r.TotalSyncElapsed += Millis(d)
-	r.Average = r.TotalSyncElapsed / uint(r.Responses) //it's ok to lose floating tail
+	r.Average = r.TotalSyncElapsed / r.Responses //it's ok to lose floating tail
 	r.Max = max(r.Max, Millis(d))
 	r.Min = min(r.Min, Millis(d))
 }
@@ -78,15 +78,15 @@ func ProgressMonitor(conf Conf, result *Result, wg *sync.WaitGroup) {
 func PrintResults(conf Conf, result Result) {
 	fmt.Println("=============== RESULTS ===============")
 	fmt.Print(`Total requests sent: ` + strconv.Itoa(conf.Iterations) + `
-	Total elapsed time: ` + uint2string(result.TotalAsyncElapsed) + `
-	Min response time: ` + uint2string(result.Min) + `
-	Max response time: ` + uint2string(result.Max) + `
-	Average response time: ` + uint2string(result.Average) + `
-	Total responses: ` + uint2string(result.Responses) + `
-	2** responses: ` + uint2string(result.OkCount) + `
-	3** responses: ` + uint2string(result.RedirectCount) + `
-	4** responses: ` + uint2string(result.ClientErrCount) + `
-	5** responses: ` + uint2string(result.ServerErrorCount))
+	Total elapsed time: ` + strconv.Itoa(result.TotalAsyncElapsed) + `
+	Min response time: ` + strconv.Itoa(result.Min) + `
+	Max response time: ` + strconv.Itoa(result.Max) + `
+	Average response time: ` + strconv.Itoa(result.Average) + `
+	Total responses: ` + strconv.Itoa(result.Responses) + `
+	2** responses: ` + strconv.Itoa(result.OkCount) + `
+	3** responses: ` + strconv.Itoa(result.RedirectCount) + `
+	4** responses: ` + strconv.Itoa(result.ClientErrCount) + `
+	5** responses: ` + strconv.Itoa(result.ServerErrorCount))
 
 	fmt.Println("\n\nPress any key to exit")
 	var holder string
@@ -108,12 +108,12 @@ func InitResult() Result {
 }
 
 //since time.Duration doesn't have Millis converter
-func Millis(d time.Duration) uint {
-	return uint(d.Nanoseconds() / millisMultilayer)
+func Millis(d time.Duration) int {
+	return int(d.Nanoseconds() / millisMultilayer)
 }
 
 // since math.Min deals with float64 only
-func min(first uint, second uint) uint {
+func min(first int, second int) int {
 	//where the heck is ternary operator in Go?!
 	if first <= second {
 		return first
@@ -122,15 +122,11 @@ func min(first uint, second uint) uint {
 }
 
 // since math.Max also deals with float64 only
-func max(first uint, second uint) uint {
+func max(first int, second int) int {
 	if first >= second {
 		return first
 	}
 	return second
-}
-
-func uint2string(i uint) string {
-	return strconv.Itoa(int(i))
 }
 
 func handleUrl(s string) string {
