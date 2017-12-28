@@ -7,23 +7,28 @@ import (
 	"github.com/sergjeepee/dead-handler-challenge/utils"
 )
 
-var conf = utils.ParseConfigs()
-var result = utils.InitResult()
-var wg = new(sync.WaitGroup)
-var mtx = new(sync.Mutex)
+var (
+	conf   = utils.ParseConfigs()
+	result = utils.InitResult()
+	wg     = new(sync.WaitGroup)
+	mtx    = new(sync.Mutex)
+)
 
 func main() {
 	utils.FancyIntro(conf)
 
 	start := time.Now()
 
-	wg.Add(int(conf.Iterations))
+	// One extra for progress bar
+	wg.Add(int(conf.Iterations) + 1)
+
+	go utils.ProgressMonitor(conf, &result, wg)
 	for i := 0; i < conf.Iterations; i++ {
 		go sendAndHandle()
 	}
 	wg.Wait()
 
-	result.TotalSyncElapsed = utils.Millis(time.Now().Sub(start))
+	result.TotalAsyncElapsed = utils.Millis(time.Now().Sub(start))
 
 	utils.PrintResults(conf, result)
 }
@@ -32,14 +37,14 @@ func sendAndHandle() {
 	start := time.Now()
 	resp, err := http.Get(conf.Url)
 	if err != nil {
-		panic(err.Error())
+		panic(err)
 	}
 	elapsed := time.Now().Sub(start)
-	result.HandleAnswerDuration(elapsed)
 
-	httpGenCode := resp.Status[:1]
 	mtx.Lock()
-	switch httpGenCode {
+	result.HandleAnswerDuration(elapsed)
+	httpGenCode := []rune(resp.Status)[0]
+	switch string(httpGenCode) {
 	case "2":
 		result.OkCount++
 	case "3":

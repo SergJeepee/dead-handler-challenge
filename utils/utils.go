@@ -3,10 +3,12 @@ package utils
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 	"math"
 	"github.com/spf13/viper"
-	"strings"
+	"gopkg.in/cheggaaa/pb.v1"
+	"sync"
 )
 
 const (
@@ -33,8 +35,8 @@ type Result struct {
 	Min               uint
 	Max               uint
 	Average           uint
-	TotalSyncElapsed  uint // needed for appropriate average value
-	TotalAsyncElapsed uint // total time elapsed to send and handle requests throw all iterations
+	TotalSyncElapsed  uint // needed for average value calculation
+	TotalAsyncElapsed uint // total time elapsed to send and handle requests through all iterations
 }
 
 type TimeStatisticOwner interface {
@@ -51,22 +53,30 @@ func (r *Result) HandleAnswerDuration(d time.Duration) {
 
 func FancyIntro(conf Conf) {
 	fmt.Println("Welcome to Dead Handler Chanllenge! Now we're going to burn your http handler")
-	fmt.Println(`Config:
+	fmt.Println(`Configs to be used:
 	url: ` + conf.Url + `
 	iterations: ` + strconv.Itoa(conf.Iterations) + `
 	method: ` + conf.Method + `
 	payload: ` + conf.Payload)
-	for i := 0; i < 4; i++ {
-		time.Sleep(time.Millisecond * 500)
-		fmt.Print(".")
+	fmt.Println()
+}
+
+func ProgressMonitor(conf Conf, result *Result, wg *sync.WaitGroup) {
+	fmt.Println("In progress:  ")
+	bar := pb.New(conf.Iterations)
+	bar.Start()
+	for !bar.IsFinished() {
+		if int(bar.Get()) == conf.Iterations {
+			bar.Finish()
+		}
+		bar.Add(int(int64(result.Responses) - bar.Get()))
 	}
-	time.Sleep(time.Millisecond * 500)
-	fmt.Println(" Meh")
-	time.Sleep(time.Millisecond * 800)
+	fmt.Println()
+	wg.Done()
 }
 
 func PrintResults(conf Conf, result Result) {
-	fmt.Println("=========== RESULTS ===========")
+	fmt.Println("=============== RESULTS ===============")
 	fmt.Print(`Total requests sent: ` + strconv.Itoa(conf.Iterations) + `
 	Total elapsed time: ` + uint2string(result.TotalAsyncElapsed) + `
 	Min response time: ` + uint2string(result.Min) + `
@@ -78,7 +88,7 @@ func PrintResults(conf Conf, result Result) {
 	4** responses: ` + uint2string(result.ClientErrCount) + `
 	5** responses: ` + uint2string(result.ServerErrorCount))
 
-	fmt.Println("\nPress any key to exit")
+	fmt.Println("\n\nPress any key to exit")
 	var holder string
 	fmt.Scanln(&holder)
 }
@@ -89,7 +99,7 @@ func ParseConfigs() Conf {
 		Iterations: viper.GetInt(iterationConfName),
 		Url:        handleUrl(viper.GetString(urlConfName)),
 		Method:     viper.GetString(methodConfName),
-		Payload:    viper.GetString(methodConfName),
+		Payload:    viper.GetString(payloadConfName),
 	}
 }
 
@@ -134,6 +144,7 @@ func initViper() {
 	viper.SetConfigName("conf")
 	viper.SetConfigType("yml")
 	viper.AddConfigPath("./src/github.com/sergjeepee/dead-handler-challenge/")
+	viper.AddConfigPath(".")
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(err)

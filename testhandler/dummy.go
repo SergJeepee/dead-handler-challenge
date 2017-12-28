@@ -14,11 +14,15 @@ func main() {
 }
 
 func get(wr http.ResponseWriter, rq *http.Request) {
-	time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
-	if rand.Int()%5 == 0 {
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(3000)))
+	rnd := rand.Int()
+	//set randomly other than 200
+	if rnd%5 == 0 {
 		wr.WriteHeader(http.StatusInternalServerError)
-	} else if rand.Int()%3 == 0 {
+	} else if rnd%6 == 0 {
 		wr.WriteHeader(http.StatusBadRequest)
+	} else if rnd%7 == 0 {
+		wr.WriteHeader(http.StatusUseProxy)
 	}
 	wr.Write([]byte("pong"))
 }
