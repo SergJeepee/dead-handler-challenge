@@ -1,61 +1,79 @@
 package main
 
 import (
-	"net/http"
-	"time"
-	"sync"
 	"github.com/sergjeepee/dead-handler-challenge/utils"
+	"github.com/sergjeepee/dead-handler-challenge/sender"
+	"github.com/sergjeepee/dead-handler-challenge/model"
+	"github.com/sergjeepee/dead-handler-challenge/constants"
+	"github.com/spf13/viper"
+	"strings"
+	"math"
+	"fmt"
+	"strconv"
 )
 
 var (
-	conf   = utils.ParseConfigs()
-	result = utils.InitResult()
-	wg     = new(sync.WaitGroup)
-	mtx    = new(sync.Mutex)
+	conf   = parseAndValidateConfigs()
+	result = initResult()
 )
 
 func main() {
-	utils.FancyIntro(conf)
+	fancyIntro(conf)
 
-	start := time.Now()
+	sender.MakeRun(conf, &result)
 
-	// One extra for progress bar
-	wg.Add(int(conf.Iterations) + 1)
-
-	go utils.ProgressMonitor(conf, &result, wg)
-	for i := 0; i < conf.Iterations; i++ {
-		go sendAndHandle()
-	}
-	wg.Wait()
-
-	result.TotalAsyncElapsed = utils.Millis(time.Now().Sub(start))
-
-	utils.PrintResults(conf, result)
+	printResults(conf, result)
 }
 
-func sendAndHandle() {
-	start := time.Now()
-	resp, err := http.Get(conf.Url)
-	if err != nil {
-		panic(err)
-	}
-	elapsed := time.Now().Sub(start)
+func fancyIntro(conf model.Conf) {
+	fmt.Println("Welcome to Dead Handler Chanllenge! Now we're going to burn your http handler")
+	fmt.Println(`Configs to be used:
+	url: ` + conf.Url + `
+	iterations: ` + strconv.Itoa(conf.Iterations) + `
+	method: ` + conf.Method + `
+	payload: ` + conf.Payload + `
+	content-type: ` + conf.ContentType)
+	fmt.Println()
+}
 
-	mtx.Lock()
-	result.HandleAnswerDuration(elapsed)
-	httpGenCode := []rune(resp.Status)[0]
-	switch string(httpGenCode) {
-	case "2":
-		result.OkCount++
-	case "3":
-		result.RedirectCount++
-	case "4":
-		result.ClientErrCount++
-	case "5":
-		result.ServerErrorCount++
-	default:
-		panic("Unexpected http response code")
+func printResults(conf model.Conf, result model.Result) {
+	fmt.Println("=============== RESULTS ===============")
+	fmt.Print(`Total requests sent: ` + strconv.Itoa(conf.Iterations) + `
+	Total elapsed time: ` + strconv.Itoa(result.TotalAsyncElapsed) + `
+	Min response time: ` + strconv.Itoa(result.Min) + `
+	Max response time: ` + strconv.Itoa(result.Max) + `
+	Average response time: ` + strconv.Itoa(result.Average) + `
+	Total responses: ` + strconv.Itoa(result.Responses) + `
+	2** responses: ` + strconv.Itoa(result.OkCount) + `
+	3** responses: ` + strconv.Itoa(result.RedirectCount) + `
+	4** responses: ` + strconv.Itoa(result.ClientErrCount) + `
+	5** responses: ` + strconv.Itoa(result.ServerErrorCount))
+
+	fmt.Println("\n\nPress any key to exit")
+	var holder string
+	fmt.Scanln(&holder)
+}
+
+func parseAndValidateConfigs() model.Conf {
+	utils.InitViper()
+	conf := model.Conf{
+		Iterations:  viper.GetInt(constants.IterationConfName),
+		PoolSize:    viper.GetInt(constants.PoolSizeConfName) + 2, // extra for main & progress monitor
+		Url:         utils.AddHttpPrefix(viper.GetString(constants.UrlConfName)),
+		Method:      strings.ToUpper(viper.GetString(constants.MethodConfName)),
+		Payload:     viper.GetString(constants.PayloadConfName),
+		ContentType: viper.GetString(constants.ContentTypeConfName),
 	}
-	mtx.Unlock()
-	wg.Done()
+	if conf.Iterations <= 0 {
+		panic("Negative '" + constants.IterationConfName + "' value")
+	}
+	if !utils.InList(conf.Method, constants.AllowedHttpMethods) {
+		panic("Unknown, or not allowed HTTP method. Use one of: " +
+			strings.Join(constants.AllowedHttpMethods, ", "))
+	}
+	return conf
+}
+
+func initResult() model.Result {
+	return model.Result{Min: math.MaxInt64}
 }

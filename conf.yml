@@ -1,5 +1,8 @@
-iterations: 1000
+iterations: 10000
+# Requests pool size
+# Huge pool may produce net errors due to poor resources/connections handling
+poolsize: 300
 url: 127.0.0.1:8080
-# next items yet unused
 method: GET
-payload:
+payload: "{\"msg\":\"hello\"}"
+contentType: application/json
